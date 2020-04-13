@@ -1,5 +1,3 @@
-scrape.py
-
 """
 Author: Brent Butler
 Purpose: Download Google mobility data which is provided in the inconvenient pdf format, parse the pdfs, and export data 
@@ -111,8 +109,8 @@ def covid_report_to_text(pdf_path):
     
     return text
 
-    def parse_main_region(text):
-        """
+def parse_main_region(text):
+    """
     Parses pdf text to find stats for macro region (country level
     or state level)
     
@@ -142,8 +140,8 @@ def covid_report_to_text(pdf_path):
     return data, last_cat_index
     
 
-    def parse_sub_regions(text, data, last_cat_index):
-        """
+def parse_sub_regions(text, data, last_cat_index):
+    """
     Parses pulls out stats for subregions
     
     Takes: text = string converted pdf
@@ -236,8 +234,8 @@ def df_to_csv(df, file_name, directory):
         os.makedirs(f'../data/processed/{processed_date}')
     df.to_csv (f'../data/processed/{processed_date}/{file_name}_{processed_date}.csv', index = False, header=True)
 
-    def region_dict_to_masterdf(master_df, data):
-        """
+def region_dict_to_masterdf(master_df, data):
+    """
     Drops the state level data so every entry is county level
     
     Input: master_df: likely blank df
@@ -310,22 +308,30 @@ def build_regionlevel_covid_report(directory):
         if file.endswith("_US_Mobility_Report_en.pdf"): #put US state level data back in
             world_list.append(file)
     
-    df = pd.DataFrame()
+    
     for file in world_list:
         text = covid_report_to_text(f'{directory}/{file}')
         data, last_cat_index = parse_main_region(text)
         data = parse_sub_regions(text, data, last_cat_index)
         if len(data['Region'])>1:
+            df = pd.DataFrame()
             df = region_dict_to_masterdf(df, data)
             df_to_csv(df, data['Region'][0].replace(' ','_'), directory)
     print('region level done')
 
+
 def run():
+    categories=['Retail & recreation', 
+                'Grocery & pharmacy',
+                'Parks', 'Transit stations',
+                'Workplaces', 'Residential']
     status, directory = scrape_covid_mobility()
     if status == True:
         build_US_state_report(directory)
         build_global_covid_report(directory)
         build_regionlevel_covid_report(directory)
+    
+        
     
 if __name__ == '__main__':
     """

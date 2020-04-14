@@ -30,7 +30,7 @@ def scrape_covid_mobility():
     
     """
     Checks for recent google mobility data and if new data available downloads pdf.
-    Saves all pdfs in '../data/raw' directory under sub directory with date of report
+    Saves all pdfs in 'data/raw' directory under sub directory with date of report
     
     outputs: boolean: True if new files downloaded
             directory: directory path where new files were saved 
@@ -39,11 +39,11 @@ def scrape_covid_mobility():
     
     """
     
-    if not os.path.exists('../data'):
-        os.makedirs('../data')
+    if not os.path.exists('data'):
+        os.makedirs('data')
     
-    if not os.path.exists('../data/raw'):
-        os.makedirs('../data/raw')
+    if not os.path.exists('data/raw'):
+        os.makedirs('data/raw')
         
     #use requests to get the mobility site
     url = 'https://www.google.com/covid19/mobility/'
@@ -60,23 +60,24 @@ def scrape_covid_mobility():
     #check the latest date of links
     date_index = html[0]['href'].find('2020')
     date = html[0]['href'][date_index:date_index+10]
-    if not os.path.exists(f'../data/raw/{date}'):
-        os.makedirs(f'../data/raw/{date}')
+    if not os.path.exists(f'data/raw/{date}'):
+        os.makedirs(f'data/raw/{date}')
         
     #download all PDFs
     for tag in html:
         link = tag['href']
         file_name = link[link.find('2020'):]      #file name based on download url which always starts with 2020 date
-        path = f"../data/raw/{date}/{file_name}"
+        path = f"data/raw/{date}/{file_name}"
         #check to see if Google has uploaded new data
         if not os.path.isfile(path):
             new_files = True
             urllib.request.urlretrieve(link, path)
             print(f'new file found: {file_name}')
+
             
-    directory = f'../data/raw/{date}'
+    directory = f'data/raw/{date}'
     if new_files == True:
-        directory = f'../data/raw/{date}'
+        directory = f'data/raw/{date}'
         print(f'New files downloaded for {date}')
         status = True
         return status, directory
@@ -150,6 +151,12 @@ def parse_sub_regions(text, data, last_cat_index):
     
     returns: ordered dictionary with main region and sub region stats
     """
+
+    categories=['Retail & recreation', 
+                'Grocery & pharmacy',
+                'Parks', 'Transit stations',
+                'Workplaces', 'Residential']
+
     test = text.find('Retail', last_cat_index) #counter to find the end of the sub regions
     while test >0:
     
@@ -227,12 +234,12 @@ def df_to_csv(df, file_name, directory):
             file_name: string for csv identification, ex: "World", "United States region" 
             directory: directory of pdfs 
     
-    output: csv: ../data/processed/{processed_date}/{file_name}_{processed_date}.csv
+    output: csv: data/processed/{processed_date}/{file_name}_{processed_date}.csv
     """
     processed_date = directory[-10:]
-    if not os.path.exists(f'../data/processed/{processed_date}'):
-        os.makedirs(f'../data/processed/{processed_date}')
-    df.to_csv (f'../data/processed/{processed_date}/{file_name}_{processed_date}.csv', index = False, header=True)
+    if not os.path.exists(f'data/processed/{processed_date}'):
+        os.makedirs(f'data/processed/{processed_date}')
+    df.to_csv (f'data/processed/{processed_date}/{file_name}_{processed_date}.csv', index = False, header=True)
 
 def region_dict_to_masterdf(master_df, data):
     """
@@ -263,6 +270,7 @@ def build_US_state_report(directory):
     Produces csv of county level data of all US States.
     Input: directory path of pdf files
     """
+    
     
     print('Building US county level report')
     us_list = [file for file in os.listdir(directory) if '_US_' in file]
@@ -321,10 +329,6 @@ def build_regionlevel_covid_report(directory):
 
 
 def run():
-    categories=['Retail & recreation', 
-                'Grocery & pharmacy',
-                'Parks', 'Transit stations',
-                'Workplaces', 'Residential']
     status, directory = scrape_covid_mobility()
     if status == True:
         build_US_state_report(directory)

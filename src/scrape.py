@@ -1,5 +1,3 @@
-scrape.py
-
 """
 Author: Brent Butler
 Purpose: Download Google mobility data which is provided in the inconvenient pdf format, parse the pdfs, and export data 
@@ -32,7 +30,7 @@ def scrape_covid_mobility():
     
     """
     Checks for recent google mobility data and if new data available downloads pdf.
-    Saves all pdfs in '../data/raw' directory under sub directory with date of report
+    Saves all pdfs in 'data/raw' directory under sub directory with date of report
     
     outputs: boolean: True if new files downloaded
             directory: directory path where new files were saved 
@@ -41,11 +39,11 @@ def scrape_covid_mobility():
     
     """
     
-    if not os.path.exists('../data'):
-        os.makedirs('../data')
+    if not os.path.exists('data'):
+        os.makedirs('data')
     
-    if not os.path.exists('../data/raw'):
-        os.makedirs('../data/raw')
+    if not os.path.exists('data/raw'):
+        os.makedirs('data/raw')
         
     #use requests to get the mobility site
     url = 'https://www.google.com/covid19/mobility/'
@@ -60,25 +58,29 @@ def scrape_covid_mobility():
     new_files = False
     
     #check the latest date of links
+    print(html)
+    print(len(html))
+    print(type(html))
     date_index = html[0]['href'].find('2020')
     date = html[0]['href'][date_index:date_index+10]
-    if not os.path.exists(f'../data/raw/{date}'):
-        os.makedirs(f'../data/raw/{date}')
+    if not os.path.exists(f'data/raw/{date}'):
+        os.makedirs(f'data/raw/{date}')
         
     #download all PDFs
     for tag in html:
         link = tag['href']
         file_name = link[link.find('2020'):]      #file name based on download url which always starts with 2020 date
-        path = f"../data/raw/{date}/{file_name}"
+        path = f"data/raw/{date}/{file_name}"
         #check to see if Google has uploaded new data
         if not os.path.isfile(path):
             new_files = True
             urllib.request.urlretrieve(link, path)
             print(f'new file found: {file_name}')
+
             
-    directory = f'../data/raw/{date}'
+    directory = f'data/raw/{date}'
     if new_files == True:
-        directory = f'../data/raw/{date}'
+        directory = f'data/raw/{date}'
         print(f'New files downloaded for {date}')
         status = True
         return status, directory
@@ -111,8 +113,8 @@ def covid_report_to_text(pdf_path):
     
     return text
 
-    def parse_main_region(text):
-        """
+def parse_main_region(text):
+    """
     Parses pdf text to find stats for macro region (country level
     or state level)
     
@@ -142,71 +144,57 @@ def covid_report_to_text(pdf_path):
     return data, last_cat_index
     
 
-    def parse_sub_regions(text, data, last_cat_index):
-        """
+def parse_sub_regions(text, data, last_cat_index):
+    """
     Parses pulls out stats for subregions
     
     Takes: text = string converted pdf
             data = ordered dictionary from parse_main_region()
             index = ending index number from parse_main_region()
     
-    returns: ordered dictionary with main region and sub region stats
+    returns: data: ordered dictionary with main region and sub region stats
     """
-    test = text.find('Retail', last_cat_index) #counter to find the end of the sub regions
-    while test >0:
     
-        #find the sub region based on location of "Retail" and last cursor location
-        region_end_index = text.find('Retail', last_cat_index)-2
-        text_slice = text[:region_end_index]
-        region_beg_index = text_slice.rfind("\n\n")+2
-        region = text[region_beg_index:region_end_index].strip('\x0c')
+    #clean the text for easier parsing
+    text_clean = text.replace('\n+80%\n','').replace('\n-80%\n','').replace('\n+40%\n','').replace('\n-40%\n','')
+    text_clean = text_clean.replace('Not enough data for this date','N/A')
+    text_clean = text_clean.replace('N/A:',"")
+    text_clean = text_clean.replace('*','').replace('Baseline','')
+    text_clean = text_clean.replace('N/A','N/A%')
+
+    #define categories to loop through
+    categories=['Retail & recreation', 
+                    'Grocery & pharmacy',
+                    'Parks', 'Transit stations',
+                    'Workplaces', 'Residential']
+
+    counter = text_clean.find('Retail', last_cat_index) #counter to find the end of the sub regions
+    while counter >0:
+
+        #find the sub region based on location of next "Retail" from super region's end
+        region_end_index = text_clean.find('Retail', last_cat_index)-2
+        region_beg_index = text_clean.rfind('\n',0,region_end_index)
+        region = text_clean[region_beg_index:region_end_index].replace('\n','').replace('\x0c','')
         data['Region']+=[region]
 
-        cursor = region_end_index #set cursor for categories withing subregion
+        #find 6 numbers or n/a following the location of the subregion
+        stat_ind = region_end_index
+        for cat in categories:
+            stat_ind = text_clean.find('%',stat_ind+1)
+            stat = text_clean[stat_ind-3:stat_ind].strip('\n')
+            if stat == 'N/A':
+                data[cat]+=[None]
+            else:
+                stat = int(stat)
+                data[cat]+=[stat]
+            stat_ind+=1
 
-        for i in categories: #find stats for each category
-
-            if i == 'Transit stations': #exception due to pattern with baseline
-                Res_ind = text.find('Residential', cursor)
-                percent_ind = Res_ind + 19
-
-                if text[percent_ind]=='%':
-
-                    percent = text[percent_ind-3:percent_ind].strip('\n').strip('%').strip(' ')
-                    percent = int(percent)
-                    data[i]+=[percent]
-                #because moving forward indexed from 'Residential' can be either 
-                #18 or 19 spaces, need to check both to see if they contain '%' 
-                elif text[percent_ind-1]=='%':
-                    percent_ind = percent_ind-1
-                    percent = text[percent_ind-3:percent_ind].strip('\n').strip('%').strip(' ')
-                    percent = int(percent)
-                    data[i]+=[percent]
-
-
-                else: data[i]+=[None]
-                cursor = percent_ind+22
-
-
-            else:    
-                #find the stats based on the % relative locatin from 'line'
-                comp_ind = text.find('line', cursor) 
-                percent_ind = comp_ind-19
-
-                if text[percent_ind]=='%': #test if category has data 
-                    percent = text[percent_ind-3:percent_ind].strip('\n')
-                    percent = int(percent)
-                    data[i]+=[percent]
-
-                else: data[i]+=[None] #assign none type if data is missing
-                cursor = comp_ind+1
-
-        last_cat_index = cursor
-        test = text.find('Retail', last_cat_index) #counter to find the end of the sub regions
-
+        #reset index cursors and counter
+        last_cat_index = stat_ind
+        counter = text_clean.find('Retail', last_cat_index)
     return data
-    
-    #turn dictionary into pandas dataframe 
+
+
 
 def dict_to_masterdf(master_df, data):
     """
@@ -229,15 +217,15 @@ def df_to_csv(df, file_name, directory):
             file_name: string for csv identification, ex: "World", "United States region" 
             directory: directory of pdfs 
     
-    output: csv: ../data/processed/{processed_date}/{file_name}_{processed_date}.csv
+    output: csv: data/processed/{processed_date}/{file_name}_{processed_date}.csv
     """
     processed_date = directory[-10:]
-    if not os.path.exists(f'../data/processed/{processed_date}'):
-        os.makedirs(f'../data/processed/{processed_date}')
-    df.to_csv (f'../data/processed/{processed_date}/{file_name}_{processed_date}.csv', index = False, header=True)
+    if not os.path.exists(f'data/processed/{processed_date}'):
+        os.makedirs(f'data/processed/{processed_date}')
+    df.to_csv (f'data/processed/{processed_date}/{file_name}_{processed_date}.csv', index = False, header=True)
 
-    def region_dict_to_masterdf(master_df, data):
-        """
+def region_dict_to_masterdf(master_df, data):
+    """
     Drops the state level data so every entry is county level
     
     Input: master_df: likely blank df
@@ -265,6 +253,7 @@ def build_US_state_report(directory):
     Produces csv of county level data of all US States.
     Input: directory path of pdf files
     """
+    
     
     print('Building US county level report')
     us_list = [file for file in os.listdir(directory) if '_US_' in file]
@@ -310,22 +299,26 @@ def build_regionlevel_covid_report(directory):
         if file.endswith("_US_Mobility_Report_en.pdf"): #put US state level data back in
             world_list.append(file)
     
-    df = pd.DataFrame()
+    
     for file in world_list:
         text = covid_report_to_text(f'{directory}/{file}')
         data, last_cat_index = parse_main_region(text)
         data = parse_sub_regions(text, data, last_cat_index)
         if len(data['Region'])>1:
+            df = pd.DataFrame()
             df = region_dict_to_masterdf(df, data)
             df_to_csv(df, data['Region'][0].replace(' ','_'), directory)
     print('region level done')
 
-def run():
+
+def run(skipscrape = False):
     status, directory = scrape_covid_mobility()
-    if status == True:
+    if status == True or skipscrape == True:
         build_US_state_report(directory)
         build_global_covid_report(directory)
         build_regionlevel_covid_report(directory)
+    
+        
     
 if __name__ == '__main__':
     """

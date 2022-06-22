@@ -24,7 +24,7 @@ matplotlib==3.1.3
 mccabe==0.6.1
 mkl-fft==1.0.15
 mkl-service==2.3.0
-numpy==1.18.1
+numpy==1.22.0
 pandas==1.0.3
 parso==0.6.2
 pdfminer==20191125
